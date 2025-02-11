@@ -2,6 +2,7 @@
 #include "ui_mainwindow.h"
 #include <QTimer>
 #include <opencv2/imgproc.hpp>
+#include <QtConcurrent/QtConcurrent>
 
 QTimer *timer = new QTimer();
 
@@ -27,32 +28,34 @@ MainWindow::~MainWindow()
 void MainWindow::on_opencam_clicked()
 {
 
+    on_closeCam_clicked();
+
     qDebug() << "Kamera açılıyor...";
 
-    if (!cap) {
-        cap = cv::makePtr<cv::VideoCapture>(0);  // Kamera başlat
-    }
+    QtConcurrent::run([this]() {
+        if (!cap) {
+            cap = cv::makePtr<cv::VideoCapture>(0);  // Kamera başlat
+        }
 
-    if (!cap->isOpened()) {
-        qDebug() << "Kamera açılmadı!";
-        return;
-    }
+        if (!cap->isOpened()) {
+            qDebug() << "Kamera açılmadı!";
+            return;
+        }
 
-    if (!qr) {
-        qr = cv::makePtr<cv::QRCodeDetector>();  // QR kod detektörünü başlat
-    }
+        if (!qr) {
+            qr = cv::makePtr<cv::QRCodeDetector>();  // QR kod detektörünü başlat
+        }
 
-    if(!barcode)
-    {
-        barcode = cv::makePtr<cv::barcode::BarcodeDetector>(); // barkod detektörünü başlat
-    }
+        if (!barcode) {
+            barcode = cv::makePtr<cv::barcode::BarcodeDetector>(); // Barkod detektörünü başlat
+        }
 
-
-
-    connect(timer, &QTimer::timeout, this, &MainWindow::processFrame);
-
-    timer->start(30);  // 30ms'de bir kare al
-    qDebug() << "Kamera başarıyla açıldı.";
+        QMetaObject::invokeMethod(this, [this]() {
+            connect(timer, &QTimer::timeout, this, &MainWindow::processFrame);
+            timer->start(30);  // 30ms'de bir kare al
+            qDebug() << "Kamera başarıyla açıldı.";
+        }, Qt::QueuedConnection);
+    });
 }
 
 void MainWindow::processFrame()
@@ -79,6 +82,7 @@ void MainWindow::processFrame()
 
     if (!qrData.empty()) {
         qDebug() << "QR Kod İçeriği: " << QString::fromStdString(qrData);
+        ui->textEdit->append(QString::fromStdString(qrData));
 
         // QR Kodunun etrafına dikdörtgen çiz
         if (qrPoints.size() == 4) { // 4 köşe noktası varsa
@@ -95,6 +99,7 @@ void MainWindow::processFrame()
 
     if (!barcodeData.empty()) {
         qDebug() << "Barkod İçeriği: " << QString::fromStdString(barcodeData);
+        ui->textEdit->append(QString::fromStdString(barcodeData));
 
         // Barkodun etrafına dikdörtgen çiz
         if (barcodePoints.size() == 4) { // 4 köşe noktası varsa
@@ -103,6 +108,7 @@ void MainWindow::processFrame()
             }
         }
     }
+
 
     // OpenCV görüntüsünü QLabel'e aktarma
     cv::cvtColor(*frame, *frame, cv::COLOR_BGR2RGB);
