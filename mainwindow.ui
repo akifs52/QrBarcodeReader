@@ -124,7 +124,7 @@
          <property name="frameShadow">
           <enum>QFrame::Shadow::Raised</enum>
          </property>
-         <layout class="QHBoxLayout" name="horizontalLayout_4">
+         <layout class="QVBoxLayout" name="verticalLayout_2">
           <property name="spacing">
            <number>0</number>
           </property>
@@ -142,6 +142,13 @@
           </property>
           <item>
            <widget class="QTextEdit" name="textEdit">
+            <property name="readOnly">
+             <bool>true</bool>
+            </property>
+           </widget>
+          </item>
+          <item>
+           <widget class="QTextEdit" name="ProductNameTextEdit">
             <property name="readOnly">
              <bool>true</bool>
             </property>

@@ -3,8 +3,15 @@
 #include <QTimer>
 #include <opencv2/imgproc.hpp>
 #include <QtConcurrent/QtConcurrent>
+#include <QMap>
 
 QTimer *timer = new QTimer();
+
+QMap<QString,QString> QrProductMap = {
+    {"A001001","Top"},
+    {"B001001","Ayakkabı"},
+    {"B002002","Şampuan"}
+    };
 
 MainWindow::MainWindow(QWidget *parent)
     : QMainWindow(parent)
@@ -51,9 +58,14 @@ void MainWindow::on_opencam_clicked()
         }
 
         QMetaObject::invokeMethod(this, [this]() {
-            connect(timer, &QTimer::timeout, this, &MainWindow::processFrame);
-            timer->start(30);  // 30ms'de bir kare al
-            qDebug() << "Kamera başarıyla açıldı.";
+            try {
+                connect(timer, &QTimer::timeout, this, &MainWindow::processFrame);
+                timer->start(30);
+            } catch (const std::exception &e) {
+                qDebug() << "invokeMethod hatası: " << e.what();
+            } catch (...) {
+                qDebug() << "invokeMethod içinde bilinmeyen hata!";
+            }
         }, Qt::QueuedConnection);
     });
 }
@@ -82,7 +94,12 @@ void MainWindow::processFrame()
 
     if (!qrData.empty()) {
         qDebug() << "QR Kod İçeriği: " << QString::fromStdString(qrData);
-        ui->textEdit->append(QString::fromStdString(qrData));
+        ui->textEdit->setText(QString::fromStdString(qrData));
+
+        if(QrProductMap.contains(QString::fromStdString(qrData)))
+        {
+            ui->ProductNameTextEdit->setText(QrProductMap[QString::fromStdString(qrData)]);
+        }
 
         // QR Kodunun etrafına dikdörtgen çiz
         if (qrPoints.size() == 4) { // 4 köşe noktası varsa
@@ -99,7 +116,8 @@ void MainWindow::processFrame()
 
     if (!barcodeData.empty()) {
         qDebug() << "Barkod İçeriği: " << QString::fromStdString(barcodeData);
-        ui->textEdit->append(QString::fromStdString(barcodeData));
+        ui->textEdit->setText(QString::fromStdString(barcodeData));
+
 
         // Barkodun etrafına dikdörtgen çiz
         if (barcodePoints.size() == 4) { // 4 köşe noktası varsa
