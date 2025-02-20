@@ -30,6 +30,14 @@ private slots:
 
     void processFrame();
 
+    void on_actionOpen_triggered();
+
+    void on_actionExit_triggered();
+
+    void connectToWifi(const QString &ssid, const QString &password);
+
+    void parseWiFiInfo(const std::string &qrData);
+
 private:
     Ui::MainWindow *ui;
 

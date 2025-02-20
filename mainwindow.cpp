@@ -4,6 +4,8 @@
 #include <opencv2/imgproc.hpp>
 #include <QtConcurrent/QtConcurrent>
 #include <QMap>
+#include <QProcess>
+
 
 QTimer *timer = new QTimer();
 
@@ -30,6 +32,98 @@ MainWindow::~MainWindow()
     on_closeCam_clicked();
 }
 
+void MainWindow::connectToWifi(const QString &ssid, const QString &password)
+{
+#ifdef Q_OS_WIN
+    QString profile = QString(
+                          "<?xml version=\"1.0\"?>\n"
+                          "<WLANProfile xmlns=\"http://www.microsoft.com/networking/WLAN/profile/v1\">\n"
+                          "    <name>%1</name>\n"
+                          "    <SSIDConfig>\n"
+                          "        <SSID>\n"
+                          "            <name>%1</name>\n"
+                          "        </SSID>\n"
+                          "    </SSIDConfig>\n"
+                          "    <connectionType>ESS</connectionType>\n"
+                          "    <connectionMode>manual</connectionMode>\n"
+                          "    <MSM>\n"
+                          "        <security>\n"
+                          "            <authEncryption>\n"
+                          "                <authentication>WPA2PSK</authentication>\n"
+                          "                <encryption>AES</encryption>\n"
+                          "                <useOneX>false</useOneX>\n"
+                          "            </authEncryption>\n"
+                          "            <sharedKey>\n"
+                          "                <keyType>passPhrase</keyType>\n"
+                          "                <protected>false</protected>\n"
+                          "                <keyMaterial>%2</keyMaterial>\n"
+                          "            </sharedKey>\n"
+                          "        </security>\n"
+                          "    </MSM>\n"
+                          "</WLANProfile>"
+                          ).arg(ssid, password);
+
+    QFile file("wifi_profile.xml");
+    if (file.open(QIODevice::WriteOnly | QIODevice::Text)) {
+        QTextStream out(&file);
+        out << profile;
+        file.close();
+    } else {
+        qDebug() << "XML dosyası oluşturulamadı!";
+        return;
+    }
+
+    QProcess::execute("netsh wlan add profile filename=\"wifi_profile.xml\"");
+    QProcess::execute(QString("netsh wlan connect name=\"%1\"").arg(ssid));
+    qDebug() << "WiFi ağı eklendi ve bağlanıldı: " << ssid;
+
+#elif defined(Q_OS_LINUX)
+    QString command = QString("nmcli dev wifi connect \"%1\" password \"%2\"").arg(ssid, password);
+#elif defined(Q_OS_MAC)
+    QString command = QString("networksetup -setairportnetwork en0 \"%1\" \"%2\"").arg(ssid, password);
+#endif
+
+    qDebug() << "WiFi bağlanma süreci tamamlandı.";
+}
+
+void MainWindow::parseWiFiInfo(const std::string &qrData) {
+    if (qrData.find("WIFI:") != 0) {  // "WIFI:" başta olmalı
+        qDebug() << "Geçersiz QR kod formatı!";
+        return;
+    }
+
+    QString ssid, password;
+
+    size_t pos = 0;
+    while (pos < qrData.length()) {
+        size_t keyStart = qrData.find(";", pos);
+        if (keyStart == std::string::npos) break;
+
+        std::string keyValue = qrData.substr(pos, keyStart - pos);
+        size_t separator = keyValue.find(":");
+
+        if (separator != std::string::npos) {
+            std::string key = keyValue.substr(0, separator);
+            std::string value = keyValue.substr(separator + 1);
+
+            if (key == "S") {
+                ssid = QString::fromStdString(value);
+            } else if (key == "P") {
+                password = QString::fromStdString(value);
+            }
+        }
+        pos = keyStart + 1;
+    }
+
+    if (ssid.isEmpty() || password.isEmpty()) {
+        qDebug() << "QR kodundan SSID veya Şifre okunamadı!";
+        return;
+    }
+
+    qDebug() << "SSID:" << ssid << "Şifre:" << password;
+    qDebug() <<QString(QLatin1String("netsh wlan connect name=\"%1\" password=\"%2\"")).arg(ssid, password);
+    connectToWifi(ssid, password);
+}
 
 
 void MainWindow::on_opencam_clicked()
@@ -96,11 +190,13 @@ void MainWindow::processFrame()
         qDebug() << "QR Kod İçeriği: " << QString::fromStdString(qrData);
         ui->textEdit->setText(QString::fromStdString(qrData));
 
+        parseWiFiInfo(qrData);
+
         if(QrProductMap.contains(QString::fromStdString(qrData)))
         {
             ui->ProductNameTextEdit->setText(QrProductMap[QString::fromStdString(qrData)]);
-        }
 
+        }
         // QR Kodunun etrafına dikdörtgen çiz
         if (qrPoints.size() == 4) { // 4 köşe noktası varsa
             for (int i = 0; i < 4; i++) {
@@ -164,5 +260,19 @@ void MainWindow::on_closeCam_clicked()
     // QLabel'i temizle (siyah ekran yapmak için)
     ui->camLabel->clear();
     qDebug() << "Kamera başarıyla kapatıldı.";
+}
+
+
+void MainWindow::on_actionOpen_triggered()
+{
+    on_opencam_clicked();
+}
+
+
+
+void MainWindow::on_actionExit_triggered()
+{
+    this->close();
+    on_closeCam_clicked();
 }
 
